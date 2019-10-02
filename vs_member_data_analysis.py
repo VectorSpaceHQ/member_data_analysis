@@ -12,6 +12,7 @@ import sqlite3
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import linregress
 
 #making simple Lists first then list of lists 
 #I also want to test the use of modules like math
@@ -24,6 +25,7 @@ def get_database():
         """
         pass
 
+
 def plot_daily_uniques(df):
         """
         Generate a plot of the number of daily unique visitors versus time.
@@ -32,7 +34,14 @@ def plot_daily_uniques(df):
         df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
         print(df)
         yesterday = datetime.today() - timedelta(days=1)
-        df_time_filtered = df[(df['date'] > '2019-01-01') & (df['date'] < yesterday)]
+        last_week = datetime.today() - timedelta(weeks=1)
+        df_time_filtered = df[(df['date'] > (datetime.today() - timedelta(days=305))) & (df['date'] < last_week)]
+        this_year = int(datetime.today().year)
+        this_week = int(datetime.today().isocalendar()[1])
+        year = pd.to_numeric(df['year'])
+        week_num = pd.to_numeric(df['week_num'])
+        df_time_filtered['weeks_ago'] = (this_year * 52 + this_week) - (year * 52 + week_num)
+        
         df_last30 = df[(df['date'] > (datetime.today() - timedelta(days=30))) & (df['date'] < yesterday)]
         df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < yesterday)]
         df_last180 = df[(df['date'] > (datetime.today() - timedelta(days=180))) & (df['date'] < yesterday)]
@@ -56,8 +65,16 @@ def plot_daily_uniques(df):
         df_time_filtered['weekly_visits'] = weekly_sums
         print(df_time_filtered)
         df_time_filtered = df_time_filtered.drop(['dow','unique_per_day'], axis=1)
-        df_weekly = df_time_filtered.groupby('week_num').max()
+        df_weekly = df_time_filtered.groupby('weeks_ago').max()
         print(df_weekly)
+        print(df_time_filtered)
+        sys.exit()
+
+        df_weekly_last4 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=4))) & (df_weekly['date'] < yesterday)]
+        df_weekly_last12 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=12))) & (df_weekly['date'] < yesterday)]
+        df_weekly_last24 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=24))) & (df_weekly['date'] < yesterday)]
+        df_weekly_year = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=52))) & (df_weekly['date'] < yesterday)]
+        print(df_weekly_last4)
                 
         
         fig = plt.figure()
@@ -93,29 +110,71 @@ def plot_daily_uniques(df):
                              yesterday-timedelta(days=120), yesterday])
         fig.subplots_adjust(hspace=1.25)
         fig.savefig("daily_uniques.png")
-
-
         
-        fig, ax1 = plt.subplots(1,1)
-        df_weekly.plot(y='weekly_visits',use_index=True, ax=ax1, legend=False, marker='.', ls='')
 
-        from scipy.stats import linregress
+        # Weekly Data
+        fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
+        ax1.set_title("Last 4 weeks")
+        ax2.set_title("Last 12 weeks")
+        ax3.set_title("Last 24 weeks")
+        ax4.set_title("Last year")
+        
+        df_weekly_last4.plot(y='weekly_visits',use_index=True, ax=ax1, label='',legend=False, marker='.', ls='')
+        df_weekly_last12.plot(y='weekly_visits',use_index=True, ax=ax2, label='',legend=False, marker='.', ls='')
+        df_weekly_last24.plot(y='weekly_visits',use_index=True, ax=ax3, label='',legend=False, marker='.', ls='')
+        df_weekly_year.plot(y='weekly_visits',use_index=True, ax=ax4, label='',legend=False, marker='.', ls='')
+        
+        max_week = df_time_filtered['week_num'].max(axis=0)
+        ax2.xaxis.set_ticks([max_week - 12, max_week - 8,
+                             max_week - 4, max_week])
+
+        x = df_weekly_last4.index
+        y = df_weekly_last4.weekly_visits
+        stats = linregress(x,y)
+        m = stats.slope
+        b = stats.intercept
+        y = m*x+b
+        growth = ((m*x.values[-1] + b)/ (m*x.values[0] + b) - 1) * 100
+        ax1.plot(x.values, y.values, color="red", label=str(int(growth)) + '%') 
+        ax1.legend(loc='best')
+
+        x = df_weekly_last12.index
+        y = df_weekly_last12.weekly_visits
+        stats = linregress(x,y)
+        m = stats.slope
+        b = stats.intercept
+        y = m*x+b
+        growth = ((m*x.values[-1] + b)/ (m*x.values[0] + b) - 1) * 100
+        ax2.plot(x.values, y.values, color="red", label=str(int(growth)) + '%') 
+        ax2.legend(loc='best')
+
+        x = df_weekly_last24.index
+        y = df_weekly_last24.weekly_visits
+        stats = linregress(x,y)
+        m = stats.slope
+        b = stats.intercept
+        y = m*x+b
+        growth = ((m*x.values[-1] + b)/ (m*x.values[0] + b) - 1) * 100
+        ax3.plot(x.values, y.values, color="red", label=str(int(growth)) + '%') 
+        ax3.legend(loc='best')
+        
         x = df_weekly.index
         y = df_weekly.weekly_visits
         stats = linregress(x,y)
-        print(stats)
-        # predict y from the data
         m = stats.slope
         b = stats.intercept
-        # x_new = np.linspace(0, 52, 100)
-        # y_new = model.predict(x_new[:, np.newaxis])
-
-        print(m)
         y = m*x+b
-        ax1.scatter(x.T, y.T, color="red", marker='.')   # I've added a color argument here
-        
-        
-        fig.suptitle('Number of Unique Member Visits per Week', fontsize=16)
+        growth = ((m*x.values[-1] + b)/ (m*x.values[0] + b) - 1) * 100
+        ax4.plot(x.values, y.values, color="red", label=str(int(growth)) + '%') 
+        ax4.legend(loc='best')
+
+        this_year = datetime.now().strftime('%Y')
+        fig.suptitle('Number of Unique Member Visits per Week in ' + this_year, fontsize=14)
+        fig.subplots_adjust(hspace=.5)
+        ax1.set_xlabel("Weeks ago")
+        ax2.set_xlabel("Weeks ago")
+        ax3.set_xlabel("Weeks ago")
+        ax4.set_xlabel("Weeks ago")
         fig.savefig("weekly_visits.png")
         
         
@@ -133,9 +192,13 @@ def main():
         df = df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=False)
 
         df['date']=pd.to_datetime(df['date'])
-        df['week_num'] = df["date"].dt.week
+        df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
         df['month'] = df["date"].dt.month_name()
         df['dow'] = df["date"].dt.weekday_name
+
+        
+
+        
         
         df['unique_per_day'] = df['member'].groupby(df["date"]).transform('nunique')
         df['dow_averages'] = df['unique_per_day'].groupby(df["dow"]).transform('mean')
@@ -146,6 +209,7 @@ def main():
 
         #df['monthly_averages'] = df['unique_per_month'].groupby(df["month_num"]).transform('mean')
         print(df)
+        
 
         daily_data = df.groupby(df['date']).mean()
         #print(daily_data)
