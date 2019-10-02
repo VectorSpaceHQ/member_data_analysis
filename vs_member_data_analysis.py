@@ -1,0 +1,169 @@
+#! /usr/bin/python3
+
+# Program to process a log list. We want to count the number of
+# unique entries per day. 
+# Unique entries oer week
+# 
+
+#import datetime
+import pandas as pd
+import numpy as np
+import sqlite3
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import numpy as np
+
+#making simple Lists first then list of lists 
+#I also want to test the use of modules like math
+#using the decimal type for number precision
+
+def get_database():
+        """
+        Pull the latest database from the RPi
+        /home/pi/repos/RFID-Access/server/rfid.db
+        """
+        pass
+
+def plot_daily_uniques(df):
+        """
+        Generate a plot of the number of daily unique visitors versus time.
+        """
+        df = df.drop(['dow_averages','member','time'], axis=1)
+        df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
+        print(df)
+        yesterday = datetime.today() - timedelta(days=1)
+        df_time_filtered = df[(df['date'] > '2019-01-01') & (df['date'] < yesterday)]
+        df_last30 = df[(df['date'] > (datetime.today() - timedelta(days=30))) & (df['date'] < yesterday)]
+        df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < yesterday)]
+        df_last180 = df[(df['date'] > (datetime.today() - timedelta(days=180))) & (df['date'] < yesterday)]
+        df_last365 = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < yesterday)]
+        
+        # print(df_time_filtered)
+        # df3 = df_time_filtered.groupby("week_num")['visit'].sum()
+        # print(df3)
+        df_time_filtered['weekly_visits'] = 0
+
+        last_dow = 'Sunday'
+        weekly_sum = 0
+        weekly_sums = []
+        for index,row in df_time_filtered.iterrows():
+                if row.dow == 'Monday' and last_dow == 'Sunday':
+                        weekly_sum = 0
+                if last_dow != row.dow:
+                        weekly_sum += row.unique_per_day
+                        last_dow = row.dow
+                weekly_sums.append(weekly_sum)
+        df_time_filtered['weekly_visits'] = weekly_sums
+        print(df_time_filtered)
+        df_time_filtered = df_time_filtered.drop(['dow','unique_per_day'], axis=1)
+        df_weekly = df_time_filtered.groupby('week_num').max()
+        print(df_weekly)
+                
+        
+        fig = plt.figure()
+        fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
+        df_last30.plot(x='date',y='unique_per_day', ax=ax1, legend=False, marker='.', ls='')
+        df_last90.plot(x='date',y='unique_per_day', ax=ax2, legend=False, marker='.', ls='')
+        df_last180.plot(x='date',y='unique_per_day', ax=ax3, legend=False, marker='.', ls='')
+        df_last365.plot(x='date',y='unique_per_day', ax=ax4, legend=False, marker='.', ls='')
+
+        
+        # linear regression on dates is hard
+        # from scipy.stats import linregress
+        # x = df_last30.date
+        # y = df_last30.unique_per_day
+        # stats = linregress(pd.to_numeric(x),y)
+        # print(stats)
+        # # predict y from the data
+        # x_new = np.linspace(0, 30, 100)
+        # y_new = model.predict(x_new[:, np.newaxis])
+
+        fig.suptitle('Number of Unique Member Visits per Day', fontsize=16)
+        ax1.set_title("Last 30 days")
+        ax2.set_title("Last 90 days")
+        ax3.set_title("Last 180 days")
+        ax4.set_title("Last 365 days")
+        ax1.xaxis.set_ticks([yesterday-timedelta(days=30),yesterday-timedelta(days=20),
+                             yesterday-timedelta(days=10), yesterday])
+        ax2.xaxis.set_ticks([yesterday-timedelta(days=90),yesterday-timedelta(days=60),
+                             yesterday-timedelta(days=30), yesterday])
+        ax3.xaxis.set_ticks([yesterday-timedelta(days=180),yesterday-timedelta(days=120),
+                             yesterday-timedelta(days=60), yesterday])
+        ax4.xaxis.set_ticks([yesterday-timedelta(days=365),yesterday-timedelta(days=240),
+                             yesterday-timedelta(days=120), yesterday])
+        fig.subplots_adjust(hspace=1.25)
+        fig.savefig("daily_uniques.png")
+
+
+        
+        fig, ax1 = plt.subplots(1,1)
+        df_weekly.plot(y='weekly_visits',use_index=True, ax=ax1, legend=False, marker='.', ls='')
+
+        from scipy.stats import linregress
+        x = df_weekly.index
+        y = df_weekly.weekly_visits
+        stats = linregress(x,y)
+        print(stats)
+        # predict y from the data
+        m = stats.slope
+        b = stats.intercept
+        # x_new = np.linspace(0, 52, 100)
+        # y_new = model.predict(x_new[:, np.newaxis])
+
+        print(m)
+        y = m*x+b
+        ax1.scatter(x.T, y.T, color="red", marker='.')   # I've added a color argument here
+        
+        
+        fig.suptitle('Number of Unique Member Visits per Week', fontsize=16)
+        fig.savefig("weekly_visits.png")
+        
+        
+
+def main():
+        cnx = sqlite3.connect('rfid.db')
+        df = pd.read_sql_query("SELECT * FROM logs", cnx)
+        df = df.drop(columns=['_etag','_updated','id','uuid','resource','granted','reason'])
+        df['_created']=pd.to_datetime(df['_created'])
+        df['date'] = df["_created"].dt.strftime("%Y-%m-%d")
+        df['time'] = df["_created"].dt.strftime("%H:%M")
+        df['year'] = df["_created"].dt.strftime("%Y")
+        df = df.drop(columns=['_created'])
+        df = df.replace({'member': {'': np.nan}}).dropna(subset=['member'])
+        df = df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=False)
+
+        df['date']=pd.to_datetime(df['date'])
+        df['week_num'] = df["date"].dt.week
+        df['month'] = df["date"].dt.month_name()
+        df['dow'] = df["date"].dt.weekday_name
+        
+        df['unique_per_day'] = df['member'].groupby(df["date"]).transform('nunique')
+        df['dow_averages'] = df['unique_per_day'].groupby(df["dow"]).transform('mean')
+        df = df.round({'dow_averages': 1})
+
+        # df['weekly_visits'] = df['unique_per_day']
+        
+
+        #df['monthly_averages'] = df['unique_per_month'].groupby(df["month_num"]).transform('mean')
+        print(df)
+
+        daily_data = df.groupby(df['date']).mean()
+        #print(daily_data)
+        
+
+
+        dow_data = df['dow_averages'].groupby(df['dow']).mean()
+        print("Average number of unique entries by day of week:")
+        print(dow_data.sort_values(ascending=False))
+
+        #monthly_data = df['monthly_averages'].groupby(df['month_num']).mean()
+        #print("Monthly Averages:")
+        #print(monthly_data.sort_values(ascending=False))
+
+        plot_daily_uniques(df)
+
+        
+if __name__ == '__main__':
+        main()
+
+        
