@@ -145,6 +145,7 @@ def plot_daily_uniques(df):
         ax2.invert_xaxis()
         ax3.invert_xaxis()
         ax4.invert_xaxis()
+        ax1.yaxis.set_major_locator(MaxNLocator(integer=True)) # force integer xaxis
         ax1.xaxis.set_major_locator(MaxNLocator(integer=True)) # force integer xaxis
 
         x = df_weekly_last4.index
@@ -204,7 +205,6 @@ def plot_daily_uniques(df):
         df = df.rename(columns={'unique_per_day':'unique_per_month'})
         df['date'] = pd.to_datetime(df['year'] + ',' + df['month'])
         df = df[(df['month'] != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
-        print(df)
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(8)
         fig.set_figwidth(10)
