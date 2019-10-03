@@ -33,7 +33,6 @@ def plot_daily_uniques(df):
         """
         df = df.drop(['dow_averages','member','time'], axis=1)
         df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
-        print(df)
         yesterday = datetime.today() - timedelta(days=1)
         last_week = datetime.today() - timedelta(weeks=1)
         df_time_filtered = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < last_week)]
@@ -48,9 +47,6 @@ def plot_daily_uniques(df):
         df_last180 = df[(df['date'] > (datetime.today() - timedelta(days=180))) & (df['date'] < yesterday)]
         df_last365 = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < yesterday)]
         
-        # print(df_time_filtered)
-        # df3 = df_time_filtered.groupby("week_num")['visit'].sum()
-        # print(df3)
         df_time_filtered['weekly_visits'] = 0
 
         last_dow = 'Sunday'
@@ -71,8 +67,6 @@ def plot_daily_uniques(df):
         df_weekly_last12 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=12))) & (df_weekly['date'] < yesterday)]
         df_weekly_last24 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=24))) & (df_weekly['date'] < yesterday)]
         df_weekly_last52 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=52))) & (df_weekly['date'] < yesterday)]
-        print(df_weekly_last52)
-                
         
         fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
@@ -201,6 +195,25 @@ def plot_daily_uniques(df):
         ax3.set_xlabel("Weeks ago")
         ax4.set_xlabel("Weeks ago")
         fig.savefig("weekly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
+
+
+
+        # Monthly for seasonal trends
+        this_month = datetime.today().strftime("%B")
+        df = df.groupby(['year','month'], as_index=False)['unique_per_day'].sum()
+        df = df.rename(columns={'unique_per_day':'unique_per_month'})
+        df['date'] = pd.to_datetime(df['year'] + ',' + df['month'])
+        df = df[(df['month'] != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
+        print(df)
+        fig, ax1 = plt.subplots(1, 1)
+        fig.set_figheight(8)
+        fig.set_figwidth(10)
+        ax1.bar(df['date'], df['unique_per_month'], 32)
+        myFmt = mdates.DateFormatter('%b-%y')
+        ax1.xaxis.set_major_formatter(myFmt)
+        fig.suptitle("Number of Unique Member Visits per Month")
+        fig.savefig("monthly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
+        
         
         
 
