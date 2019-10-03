@@ -76,27 +76,35 @@ def plot_daily_uniques(df):
         
         fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
-        df_last30.plot(x='date',y='unique_per_day', ax=ax1, legend=False, marker='.', ls='')
-        df_last90.plot(x='date',y='unique_per_day', ax=ax2, legend=False, marker='.', ls='')
-        df_last180.plot(x='date',y='unique_per_day', ax=ax3, legend=False, marker='.', ls='')
-        df_last365.plot(x='date',y='unique_per_day', ax=ax4, legend=False, marker='.', ls='')
-
+        fig.set_figheight(8)
+        fig.set_figwidth(10)
         
-        # linear regression on dates is hard
-        # from scipy.stats import linregress
-        # x = df_last30.date
-        # y = df_last30.unique_per_day
-        # stats = linregress(pd.to_numeric(x),y)
-        # print(stats)
-        # # predict y from the data
-        # x_new = np.linspace(0, 30, 100)
-        # y_new = model.predict(x_new[:, np.newaxis])
+        mean_val = np.full(df_last30.shape[0], df_last30.unique_per_day.mean())
+        ax1.plot(df_last30['date'], df_last30['unique_per_day'], '.', label='')
+        ax1.plot(df_last30['date'], mean_val, '-', color='red', label='avg '+str(round(df_last30['unique_per_day'].mean(),1)))
 
+        mean_val = np.full(df_last90.shape[0], df_last90.unique_per_day.mean())
+        ax2.plot(df_last90['date'], df_last90['unique_per_day'], '.', label='')
+        ax2.plot(df_last90['date'], mean_val, '-', color='red', label='avg '+str(round(df_last90['unique_per_day'].mean(),1)))
+
+        mean_val = np.full(df_last180.shape[0], df_last180.unique_per_day.mean())
+        ax3.plot(df_last180['date'], df_last180['unique_per_day'], '.', label='')
+        ax3.plot(df_last180['date'], mean_val, '-', color='red', label='avg '+str(round(df_last180['unique_per_day'].mean(),1)))
+        
+        mean_val = np.full(df_last365.shape[0], df_last365.unique_per_day.mean())
+        ax4.plot(df_last365['date'], df_last365['unique_per_day'], '.', label='')
+        ax4.plot(df_last365['date'], mean_val, '-', color='red', label='avg '+str(round(df_last365['unique_per_day'].mean(),1)))
+                
         fig.suptitle('Number of Unique Member Visits per Day', fontsize=16)
         ax1.set_title("Last 30 days")
         ax2.set_title("Last 90 days")
         ax3.set_title("Last 180 days")
         ax4.set_title("Last 365 days")
+        ax1.legend(loc='best')
+        ax2.legend(loc='best')
+        ax3.legend(loc='best')
+        ax4.legend(loc='best')
+        
         ax1.xaxis.set_ticks([yesterday-timedelta(days=30),yesterday-timedelta(days=20),
                              yesterday-timedelta(days=10), yesterday])
         ax2.xaxis.set_ticks([yesterday-timedelta(days=90),yesterday-timedelta(days=60),
@@ -105,7 +113,19 @@ def plot_daily_uniques(df):
                              yesterday-timedelta(days=60), yesterday])
         ax4.xaxis.set_ticks([yesterday-timedelta(days=365),yesterday-timedelta(days=240),
                              yesterday-timedelta(days=120), yesterday])
-        fig.subplots_adjust(hspace=1.25)
+        
+        ax1.set_xlabel("")
+        ax2.set_xlabel("")
+        ax3.set_xlabel("")
+        ax4.set_xlabel("")
+        fig.subplots_adjust(hspace=.75)
+        
+        import matplotlib.dates as mdates
+        myFmt = mdates.DateFormatter('%m-%d')
+        ax1.xaxis.set_major_formatter(myFmt)
+        ax2.xaxis.set_major_formatter(myFmt)
+        ax3.xaxis.set_major_formatter(myFmt)
+        ax4.xaxis.set_major_formatter(myFmt)
         fig.savefig("daily_uniques.png")
         
 
