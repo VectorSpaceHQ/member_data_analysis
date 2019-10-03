@@ -209,6 +209,7 @@ def plot_daily_uniques(df):
         fig.set_figheight(8)
         fig.set_figwidth(10)
         ax1.bar(df['date'], df['unique_per_month'], 32)
+        plt.grid(b=True, which='major', color='#666666', linestyle='-')
         myFmt = mdates.DateFormatter('%b-%y')
         ax1.xaxis.set_major_formatter(myFmt)
         fig.suptitle("Number of Unique Member Visits per Month")
