@@ -14,18 +14,21 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 from scipy.stats import linregress
+import paramiko
+import sys
 
-#making simple Lists first then list of lists 
-#I also want to test the use of modules like math
-#using the decimal type for number precision
+sshpw = sys.argv[1]
 
 def get_database():
         """
         Pull the latest database from the RPi
-        /home/pi/repos/RFID-Access/server/rfid.db
         """
-        pass
-
+        ssh_client=paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
+        ftp_client=ssh_client.open_sftp()
+        ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
+        ftp_client.close()
 
 def plot_daily_uniques(df):
         """
@@ -219,6 +222,8 @@ def plot_daily_uniques(df):
         
 
 def main():
+        get_database()
+        
         cnx = sqlite3.connect('rfid.db')
         df = pd.read_sql_query("SELECT * FROM logs", cnx)
         df = df.drop(columns=['_etag','_updated','id','uuid','resource','granted','reason'])
