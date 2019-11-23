@@ -12,23 +12,54 @@ import sqlite3
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-import numpy as np
 from scipy.stats import linregress
 import paramiko
 import sys
+import os
+
 
 sshpw = sys.argv[1]
+
 
 def get_database():
         """
         Pull the latest database from the RPi
         """
+        # print(type(os.path.getmtime("rfid.db")))
+        # modified_time = datetime.datetime.fromtimestamp(os.path.getmtime("rfid.db")).strftime('%Y-%m-%d %H:%M:%S')
+        # print(type(modified_time))
+        # print(modified_time - datetime.datetime.now())
+        
+        # sys.exit()
+        
         ssh_client=paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
         ftp_client=ssh_client.open_sftp()
         ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
         ftp_client.close()
+
+        
+def find_inactive_members(df):
+        df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < datetime.today())]
+        df_last30 = df[(df['date'] > (datetime.today() - timedelta(days=30))) & (df['date'] < datetime.today())]
+
+        df_last30 = df_last30.groupby(df["member"]).mean()
+        df_last90 = df_last90.groupby(df["member"]).mean()
+        df_last30 = df_last30.drop(['unique_per_day','dow_averages'], axis=1)
+        df_last90 = df_last90.drop(['unique_per_day','dow_averages'], axis=1)
+        df_last30.reset_index(level=0, inplace=True)
+        df_last90.reset_index(level=0, inplace=True)
+        
+        common = pd.merge(df_last30, df_last90, on=['member'], how='inner')
+        uncommon = df_last90[(~df_last90.member.isin(common.member))]
+        uncommon.reset_index(inplace=True, drop=True)
+        print("\nThe following members have keyed into the space in the last 90 days, but not in the last 30 days")
+        print(uncommon)
+
+
+
+
 
 def plot_daily_uniques(df):
         """
@@ -241,23 +272,32 @@ def main():
         df['dow'] = df["date"].dt.weekday_name
         
         df['unique_per_day'] = df['member'].groupby(df["date"]).transform('nunique')
+        # df['unique_per_month'] = df['member'].groupby(df["month"]).transform('nunique')
         df['dow_averages'] = df['unique_per_day'].groupby(df["dow"]).transform('mean')
         df = df.round({'dow_averages': 1})
-
-        print(df)
-        
 
         daily_data = df.groupby(df['date']).mean()
 
         dow_data = df['dow_averages'].groupby(df['dow']).mean()
+        yesterday = datetime.today() - timedelta(days=1)
+
+        df_last52 = df[(df['date'] > (datetime.today() - timedelta(weeks=52)))]
+        df_last52.drop(columns=['dow_averages'])
+        df_last52['dow_averages'] = df_last52['unique_per_day'].groupby(df_last52["dow"]).transform('mean')
+        df_last52 = df_last52.round({'dow_averages': 1})
+        dow_data_last52 = df_last52['dow_averages'].groupby(df_last52['dow']).mean()
+        
+
         print("Average number of unique entries by day of week:")
         print(dow_data.sort_values(ascending=False))
+        print(dow_data_last52.sort_values(ascending=False))
 
         #monthly_data = df['monthly_averages'].groupby(df['month_num']).mean()
         #print("Monthly Averages:")
         #print(monthly_data.sort_values(ascending=False))
 
         plot_daily_uniques(df)
+        find_inactive_members(df)
 
         
 if __name__ == '__main__':
