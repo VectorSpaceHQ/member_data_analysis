@@ -25,19 +25,19 @@ def get_database():
         """
         Pull the latest database from the RPi
         """
-        # print(type(os.path.getmtime("rfid.db")))
-        # modified_time = datetime.datetime.fromtimestamp(os.path.getmtime("rfid.db")).strftime('%Y-%m-%d %H:%M:%S')
-        # print(type(modified_time))
-        # print(modified_time - datetime.datetime.now())
+        modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
+        print(type(modified_time))
+        if (modified_time + timedelta(days=1)) < datetime.now():
+                print("database is old, get new one")
+                ssh_client=paramiko.SSHClient()
+                ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
+                ftp_client=ssh_client.open_sftp()
+                ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
+                ftp_client.close()
+        else:
+                print("database is recent enough.")
         
-        # sys.exit()
-        
-        ssh_client=paramiko.SSHClient()
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
-        ftp_client=ssh_client.open_sftp()
-        ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
-        ftp_client.close()
 
         
 def find_inactive_members(df):
@@ -281,15 +281,12 @@ def main():
         dow_data = df['dow_averages'].groupby(df['dow']).mean()
         yesterday = datetime.today() - timedelta(days=1)
 
-        df_last52 = df[(df['date'] > (datetime.today() - timedelta(weeks=52)))]
+        df_last52 = df[(df['date'] > (datetime.today() - timedelta(weeks=52)))& (df['date'] < yesterday)]
         df_last52.drop(columns=['dow_averages'])
         df_last52['dow_averages'] = df_last52['unique_per_day'].groupby(df_last52["dow"]).transform('mean')
         df_last52 = df_last52.round({'dow_averages': 1})
         dow_data_last52 = df_last52['dow_averages'].groupby(df_last52['dow']).mean()
-        
-
         print("Average number of unique entries by day of week:")
-        print(dow_data.sort_values(ascending=False))
         print(dow_data_last52.sort_values(ascending=False))
 
         #monthly_data = df['monthly_averages'].groupby(df['month_num']).mean()
