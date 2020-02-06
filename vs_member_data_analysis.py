@@ -16,7 +16,7 @@ from scipy.stats import linregress
 import paramiko
 import sys
 import os
-
+from pathlib import Path
 
 sshpw = sys.argv[1]
 
@@ -287,9 +287,9 @@ def generate_pdf(uncommon, dow_data):
         pdf.image('daily_uniques.png', x = None, y = None, w=180, type = '', link = '')
         pdf.add_page()
         pdf.image('monthly_visits_'+today+'.png', x = None, y = None, w=180, type = '', link = '')
-        
-        pdf.output('member-data_'+today+'.pdf', 'F')
-        
+
+        Path("./reports").mkdir(parents=True, exist_ok=True)
+        pdf.output('./reports/member-data_'+today+'.pdf', 'F')
         
 
 def main():
