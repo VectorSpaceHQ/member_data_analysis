@@ -57,6 +57,8 @@ def find_inactive_members(df):
         print("\nThe following members have keyed into the space in the last 90 days, but not in the last 30 days")
         print(uncommon)
 
+        return uncommon
+
 
 
 
@@ -104,8 +106,8 @@ def plot_daily_uniques(df):
         
         fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
-        fig.set_figheight(8)
-        fig.set_figwidth(10)
+        fig.set_figheight(11)
+        fig.set_figwidth(8)
         
         mean_val = np.full(df_last30.shape[0], df_last30.unique_per_day.mean())
         ax1.plot(df_last30['date'], df_last30['unique_per_day'], '.', label='')
@@ -146,7 +148,7 @@ def plot_daily_uniques(df):
         ax2.set_xlabel("")
         ax3.set_xlabel("")
         ax4.set_xlabel("")
-        fig.subplots_adjust(hspace=.75)
+        fig.subplots_adjust(hspace=.4)
         
         import matplotlib.dates as mdates
         myFmt = mdates.DateFormatter('%m-%d')
@@ -159,8 +161,8 @@ def plot_daily_uniques(df):
 
         # Weekly Data
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
-        fig.set_figheight(8)
-        fig.set_figwidth(10)
+        fig.set_figheight(11)
+        fig.set_figwidth(8)
         ax1.set_title("Past 4 weeks")
         ax2.set_title("Past 12 weeks")
         ax3.set_title("Past 24 weeks")
@@ -223,7 +225,7 @@ def plot_daily_uniques(df):
         ax4.legend(loc='best')
 
         this_year = datetime.now().strftime('%Y-%m-%d, week ') + str(datetime.today().isocalendar()[1])
-        fig.suptitle('Number of Unique Member Visits per Week\nPlot Generated ' + this_year, fontsize=14)
+        fig.suptitle('Number of Unique (per day) Member Visits per Week\nPlot Generated ' + this_year, fontsize=14)
         fig.subplots_adjust(hspace=.4)
         ax1.set_xlabel("Weeks ago")
         ax2.set_xlabel("Weeks ago")
@@ -240,15 +242,53 @@ def plot_daily_uniques(df):
         df['date'] = pd.to_datetime(df['year'] + ',' + df['month'])
         df = df[(df['month'] != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
         fig, ax1 = plt.subplots(1, 1)
-        fig.set_figheight(8)
-        fig.set_figwidth(10)
+        fig.set_figheight(11)
+        fig.set_figwidth(8)
         ax1.bar(df['date'], df['unique_per_month'], 32)
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         myFmt = mdates.DateFormatter('%b-%y')
         ax1.xaxis.set_major_formatter(myFmt)
-        fig.suptitle("Number of Unique Member Visits per Month")
+        fig.suptitle("Number of Unique (per day) Member Visits per Month")
         fig.savefig("monthly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
         
+        
+        
+def generate_pdf(uncommon, dow_data):
+        from fpdf import FPDF
+        
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font('Arial', 'B', 16)
+        pdf.cell(40, 10, 'Vector Space Member Data Report')
+        pdf.cell(10, 40, datetime.now().strftime('%m-%d-%Y'))
+
+        print(type(uncommon))
+        pdf.add_page()
+        pdf.set_font('Arial', '', 10)
+        pdf.cell(40, 20, 'The following people have keyed into the space in the last 90 days, but not in the last 30 days.',0,2,"L")
+        for i in range(0, len(uncommon)):
+                if i%2 == 0:
+                        pdf.cell(50, 8, '%s' % (uncommon['member'].ix[i]), 0, 0, 'C')
+                else:
+                        pdf.cell(50, 8, '%s' % (uncommon['member'].ix[i]), 0, 2, 'C')
+                        pdf.cell(-50)
+                        
+                        
+        pdf.add_page()
+        pdf.cell(40, 20, 'Average number of unique entries by day of week.',0,2,"L")
+        data = dow_data.sort_values(ascending=False).to_string()
+        for line in data.splitlines()[1:]:
+                pdf.cell(50, 8, '%s' % (line), 0, 2, 'R')
+        
+        pdf.add_page()
+        today = datetime.now().strftime('%Y-%m-%d')
+        pdf.image('weekly_visits_'+today+'.png', x = None, y = None, w=180, type = '', link = '')
+        pdf.add_page()
+        pdf.image('daily_uniques.png', x = None, y = None, w=180, type = '', link = '')
+        pdf.add_page()
+        pdf.image('monthly_visits_'+today+'.png', x = None, y = None, w=180, type = '', link = '')
+        
+        pdf.output('member-data_'+today+'.pdf', 'F')
         
         
 
@@ -294,7 +334,9 @@ def main():
         #print(monthly_data.sort_values(ascending=False))
 
         plot_daily_uniques(df)
-        find_inactive_members(df)
+        uncommon = find_inactive_members(df)
+        
+        generate_pdf(uncommon, dow_data_last52)
 
         
 if __name__ == '__main__':
