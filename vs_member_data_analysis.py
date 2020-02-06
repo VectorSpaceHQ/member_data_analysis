@@ -290,6 +290,10 @@ def generate_pdf(uncommon, dow_data):
 
         Path("./reports").mkdir(parents=True, exist_ok=True)
         pdf.output('./reports/member-data_'+today+'.pdf', 'F')
+
+        # cleanup plots
+        os.remove("*_visits_*.png")
+        os.remove("daily_*.png")
         
 
 def main():
