@@ -17,6 +17,7 @@ import paramiko
 import sys
 import os
 from pathlib import Path
+import glob
 
 sshpw = sys.argv[1]
 
@@ -292,8 +293,12 @@ def generate_pdf(uncommon, dow_data):
         pdf.output('./reports/member-data_'+today+'.pdf', 'F')
 
         # cleanup plots
-        os.remove("*_visits_*.png")
-        os.remove("daily_*.png")
+        fileList = glob.glob('/vsfs01/home/aspontarelli/Documents/member_data_analysis/*.png')
+        for filePath in fileList:
+                try:
+                        os.remove(filePath)
+                except:
+                        print("Error while deleting file : ", filePath)
         
 
 def main():
@@ -313,7 +318,7 @@ def main():
         df['date']=pd.to_datetime(df['date'])
         df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
         df['month'] = df["date"].dt.month_name()
-        df['dow'] = df["date"].dt.weekday_name
+        df['dow'] = df["date"].dt.weekday
         
         df['unique_per_day'] = df['member'].groupby(df["date"]).transform('nunique')
         # df['unique_per_month'] = df['member'].groupby(df["month"]).transform('nunique')
