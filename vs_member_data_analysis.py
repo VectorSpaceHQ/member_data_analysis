@@ -47,8 +47,8 @@ def find_inactive_members(df):
 
         df_last30 = df_last30.groupby(df["member"]).mean()
         df_last90 = df_last90.groupby(df["member"]).mean()
-        df_last30 = df_last30.drop(['unique_per_day','dow_averages'], axis=1)
-        df_last90 = df_last90.drop(['unique_per_day','dow_averages'], axis=1)
+        df_last30 = df_last30.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
+        df_last90 = df_last90.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
         df_last30.reset_index(level=0, inplace=True)
         df_last90.reset_index(level=0, inplace=True)
         
@@ -69,7 +69,14 @@ def plot_daily_uniques(df):
         Generate a plot of the number of daily unique visitors versus time.
         """
         df = df.drop(['dow_averages','member','time'], axis=1)
+        week_num = pd.to_numeric(df['week_num'])
+        df['week_num'] = week_num
+        print(df)
+        
         df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
+        print(df)
+        
+        
         yesterday = datetime.today() - timedelta(days=1)
         last_week = datetime.today() - timedelta(weeks=1)
         df_time_filtered = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < last_week)]
@@ -83,14 +90,16 @@ def plot_daily_uniques(df):
         df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < yesterday)]
         df_last180 = df[(df['date'] > (datetime.today() - timedelta(days=180))) & (df['date'] < yesterday)]
         df_last365 = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < yesterday)]
+
+        
         
         df_time_filtered['weekly_visits'] = 0
-
-        last_dow = 'Sunday'
+        
+        last_dow = 6 # monday = 0, sunday = 6
         weekly_sum = 0
         weekly_sums = []
         for index,row in df_time_filtered.iterrows():
-                if row.dow == 'Monday' and last_dow == 'Sunday':
+                if row.dow == 0 and last_dow == 6:
                         weekly_sum = 0
                 if last_dow != row.dow:
                         weekly_sum += row.unique_per_day
@@ -152,8 +161,9 @@ def plot_daily_uniques(df):
         fig.subplots_adjust(hspace=.4)
         
         import matplotlib.dates as mdates
-        myFmt = mdates.DateFormatter('%m-%d')
-        ax1.xaxis.set_major_formatter(myFmt)
+        last30Fmt = mdates.DateFormatter('%b-%d')
+        myFmt = mdates.DateFormatter('%b-%y')
+        ax1.xaxis.set_major_formatter(last30Fmt)
         ax2.xaxis.set_major_formatter(myFmt)
         ax3.xaxis.set_major_formatter(myFmt)
         ax4.xaxis.set_major_formatter(myFmt)
@@ -237,11 +247,14 @@ def plot_daily_uniques(df):
 
 
         # Monthly for seasonal trends
-        this_month = datetime.today().strftime("%B")
+        
+        this_month = datetime.today().strftime("%-m")
         df = df.groupby(['year','month'], as_index=False)['unique_per_day'].sum()
         df = df.rename(columns={'unique_per_day':'unique_per_month'})
-        df['date'] = pd.to_datetime(df['year'] + ',' + df['month'])
-        df = df[(df['month'] != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
+        df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
+
+        df = df[(df['month'].astype(str) != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
+                
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
@@ -255,6 +268,11 @@ def plot_daily_uniques(df):
         
         
 def generate_pdf(uncommon, dow_data):
+        # convert numeric days to words
+        dayOfWeek={0:'Monday', 1:'Tuesday', 2:'Wednesday', 3:'Thursday', 4:'Friday', 5:'Saturday', 6:'Sunday'}
+        dow_data = pd.DataFrame({'day':dow_data.index, 'avg_visits':dow_data.values})
+        dow_data['weekday'] = dow_data['day'].map(dayOfWeek)
+        
         from fpdf import FPDF
         
         pdf = FPDF()
@@ -269,15 +287,19 @@ def generate_pdf(uncommon, dow_data):
         pdf.cell(40, 20, 'The following people have keyed into the space in the last 90 days, but not in the last 30 days.',0,2,"L")
         for i in range(0, len(uncommon)):
                 if i%2 == 0:
-                        pdf.cell(50, 8, '%s' % (uncommon['member'].ix[i]), 0, 0, 'C')
+                        pdf.cell(50, 8, '%s' % (uncommon['member'].loc[i]), 0, 0, 'C')
                 else:
-                        pdf.cell(50, 8, '%s' % (uncommon['member'].ix[i]), 0, 2, 'C')
+                        pdf.cell(50, 8, '%s' % (uncommon['member'].loc[i]), 0, 2, 'C')
                         pdf.cell(-50)
                         
                         
         pdf.add_page()
         pdf.cell(40, 20, 'Average number of unique entries by day of week.',0,2,"L")
-        data = dow_data.sort_values(ascending=False).to_string()
+
+        dow_data = dow_data.drop(columns=['day'])
+        dow_data = dow_data.set_index('avg_visits')
+        data = dow_data.sort_values(by=['avg_visits'], ascending = False).to_string()
+                
         for line in data.splitlines()[1:]:
                 pdf.cell(50, 8, '%s' % (line), 0, 2, 'R')
         
@@ -317,7 +339,7 @@ def main():
 
         df['date']=pd.to_datetime(df['date'])
         df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
-        df['month'] = df["date"].dt.month_name()
+        df['month'] = df["date"].dt.month # month_name()
         df['dow'] = df["date"].dt.weekday
         
         df['unique_per_day'] = df['member'].groupby(df["date"]).transform('nunique')
@@ -338,11 +360,14 @@ def main():
         print("Average number of unique entries by day of week:")
         print(dow_data_last52.sort_values(ascending=False))
 
+
+
         #monthly_data = df['monthly_averages'].groupby(df['month_num']).mean()
         #print("Monthly Averages:")
         #print(monthly_data.sort_values(ascending=False))
 
         plot_daily_uniques(df)
+
         uncommon = find_inactive_members(df)
         
         generate_pdf(uncommon, dow_data_last52)
