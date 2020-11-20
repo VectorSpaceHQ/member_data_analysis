@@ -3,9 +3,12 @@
 # Program to process a log list. We want to count the number of
 # unique entries per day. 
 # Unique entries oer week
-# 
+#
 
-#import datetime
+import matplotlib
+matplotlib.use('pdf')
+import matplotlib.pyplot as plt
+
 import pandas as pd
 import numpy as np
 import sqlite3
@@ -96,7 +99,7 @@ def plot_active_members(df):
                 
                 df.loc[df.index[i+skip_value],'percent_active'] = int(100 * N_active_members / N_total_members)
 
-        fig = plt.figure()
+        # fig = plt.figure()
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
@@ -158,7 +161,7 @@ def plot_daily_uniques(df):
         df_weekly_last24 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=24))) & (df_weekly['date'] < yesterday)]
         df_weekly_last52 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=52))) & (df_weekly['date'] < yesterday)]
 
-        fig = plt.figure()
+        # fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
         fig.set_figheight(11)
         fig.set_figwidth(8)
