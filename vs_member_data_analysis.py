@@ -19,22 +19,24 @@ import os
 from pathlib import Path
 import glob
 
-sshpw = sys.argv[1]
-
 
 def get_database():
         """
         Pull the latest database from the RPi
         """
-        modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
-        print(type(modified_time))
+        if os.path.isfile('rfid.db'):
+                modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
+                print(type(modified_time))
+        else:
+                modified_time = datetime.now() - timedelta(days=3)
         if (modified_time + timedelta(days=1)) < datetime.now():
                 print("database is old, get new one")
+                sshpw = input("Enter SSH PW: ")
                 ssh_client=paramiko.SSHClient()
                 ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
                 ftp_client=ssh_client.open_sftp()
-                ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
+                ftp_client.get('/home/pi/RFID-Access/server/rfid.db', './rfid.db')
                 ftp_client.close()
         else:
                 print("database is recent enough.")
@@ -74,8 +76,7 @@ def plot_daily_uniques(df):
         print(df)
         
         df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
-        print(df)
-        
+
         
         yesterday = datetime.today() - timedelta(days=1)
         last_week = datetime.today() - timedelta(weeks=1)
@@ -94,6 +95,8 @@ def plot_daily_uniques(df):
         
         
         df_time_filtered['weekly_visits'] = 0
+
+
         
         last_dow = 6 # monday = 0, sunday = 6
         weekly_sum = 0
@@ -113,7 +116,7 @@ def plot_daily_uniques(df):
         df_weekly_last12 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=12))) & (df_weekly['date'] < yesterday)]
         df_weekly_last24 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=24))) & (df_weekly['date'] < yesterday)]
         df_weekly_last52 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=52))) & (df_weekly['date'] < yesterday)]
-        
+
         fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
         fig.set_figheight(11)
@@ -168,7 +171,6 @@ def plot_daily_uniques(df):
         ax3.xaxis.set_major_formatter(myFmt)
         ax4.xaxis.set_major_formatter(myFmt)
         fig.savefig("daily_uniques.png")
-        
 
         # Weekly Data
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
@@ -178,7 +180,7 @@ def plot_daily_uniques(df):
         ax2.set_title("Past 12 weeks")
         ax3.set_title("Past 24 weeks")
         ax4.set_title("Past 52 weeks")
-        
+
         df_weekly_last4.plot(y='weekly_visits',use_index=True, ax=ax1, label='',legend=False, marker='.', ls='')
         df_weekly_last12.plot(y='weekly_visits',use_index=True, ax=ax2, label='',legend=False, marker='.', ls='')
         df_weekly_last24.plot(y='weekly_visits',use_index=True, ax=ax3, label='',legend=False, marker='.', ls='')
@@ -245,20 +247,18 @@ def plot_daily_uniques(df):
         fig.savefig("weekly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
 
 
-
         # Monthly for seasonal trends
-        
         this_month = datetime.today().strftime("%-m")
         df = df.groupby(['year','month'], as_index=False)['unique_per_day'].sum()
         df = df.rename(columns={'unique_per_day':'unique_per_month'})
         df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
 
         df = df[(df['month'].astype(str) != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
-                
+
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
-        ax1.bar(df['date'], df['unique_per_month'], 32)
+        ax1.bar(df['date'], df['unique_per_month'], width=np.timedelta64(20, 'D'))
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         myFmt = mdates.DateFormatter('%b-%y')
         ax1.xaxis.set_major_formatter(myFmt)
@@ -328,14 +328,18 @@ def main():
         
         cnx = sqlite3.connect('rfid.db')
         df = pd.read_sql_query("SELECT * FROM logs", cnx)
+
         df = df.drop(columns=['_etag','_updated','id','uuid','resource','granted','reason'])
         df['_created']=pd.to_datetime(df['_created'])
         df['date'] = df["_created"].dt.strftime("%Y-%m-%d")
         df['time'] = df["_created"].dt.strftime("%H:%M")
         df['year'] = df["_created"].dt.strftime("%Y")
+
         df = df.drop(columns=['_created'])
+        
         df = df.replace({'member': {'': np.nan}}).dropna(subset=['member'])
-        df = df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=False)
+        
+        df = df.dropna(axis=0, how='any', thresh=None, subset=['member'], inplace=False)
 
         df['date']=pd.to_datetime(df['date'])
         df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
