@@ -19,22 +19,24 @@ import os
 from pathlib import Path
 import glob
 
-sshpw = sys.argv[1]
-
 
 def get_database():
         """
         Pull the latest database from the RPi
         """
-        modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
-        print(type(modified_time))
+        if os.path.isfile('rfid.db'):
+                modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
+                print(type(modified_time))
+        else:
+                modified_time = datetime.now() - timedelta(days=3)
         if (modified_time + timedelta(days=1)) < datetime.now():
                 print("database is old, get new one")
+                sshpw = input("Enter SSH PW: ")
                 ssh_client=paramiko.SSHClient()
                 ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
                 ftp_client=ssh_client.open_sftp()
-                ftp_client.get('/home/pi/repos/RFID-Access/server/rfid.db', './rfid.db')
+                ftp_client.get('/home/pi/RFID-Access/server/rfid.db', './rfid.db')
                 ftp_client.close()
         else:
                 print("database is recent enough.")
@@ -58,11 +60,54 @@ def find_inactive_members(df):
         print("\nThe following members have keyed into the space in the last 90 days, but not in the last 30 days")
         print(uncommon)
 
+        print(df_last30)
+        N_total_members = len(df_last90['member'])
+        N_active_members = len(df_last30['member'])
+        print("{} Total members (visited in last 90 days)".format(N_total_members))
+        print("{} Active members (visited in last 30 days)".format(N_active_members))
+        print("{}% of members are currently active".format(int(100 * N_active_members / N_total_members)))
+        
         return uncommon
 
 
+def plot_active_members(df):
+        """
+        Plot daily percent of active members
+        """
+        print("This function takes time...")
+        skip_value = 1000
+        for i in range(0,df.shape[0]-skip_value):
+                j = i + skip_value
+                df_last90 = df[(df['date'] > (df.iloc[j]['date'] - timedelta(days=90))) & (df['date'] < df.iloc[j]['date'])]
+                df_last30 = df[(df['date'] > (df.iloc[j]['date'] - timedelta(days=30))) & (df['date'] < df.iloc[j]['date'])]
 
+                df_last30 = df_last30.groupby(df["member"]).mean()
+                df_last90 = df_last90.groupby(df["member"]).mean()
+                df_last30 = df_last30.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
+                df_last90 = df_last90.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
+                df_last30.reset_index(level=0, inplace=True)
+                df_last90.reset_index(level=0, inplace=True)
 
+                common = pd.merge(df_last30, df_last90, on=['member'], how='inner')
+                uncommon = df_last90[(~df_last90.member.isin(common.member))]
+                uncommon.reset_index(inplace=True, drop=True)
+                N_total_members = len(df_last90['member'])
+                N_active_members = len(df_last30['member'])
+                
+                df.loc[df.index[i+skip_value],'percent_active'] = int(100 * N_active_members / N_total_members)
+
+        fig = plt.figure()
+        fig, ax1 = plt.subplots(1, 1)
+        fig.set_figheight(11)
+        fig.set_figwidth(8)
+        ax1.set_title("Percent of Active Members Over Time")
+        ax1.set_xlabel("Date")
+        ax1.set_ylabel("Percent (%)")
+        ax1.plot(df['date'], df['percent_active'])
+        
+        fig.savefig("percent_active.png")
+        
+        
 
 def plot_daily_uniques(df):
         """
@@ -74,8 +119,7 @@ def plot_daily_uniques(df):
         print(df)
         
         df = df.groupby('date', as_index=False).max() # aggregate down to one row per day
-        print(df)
-        
+
         
         yesterday = datetime.today() - timedelta(days=1)
         last_week = datetime.today() - timedelta(weeks=1)
@@ -91,8 +135,6 @@ def plot_daily_uniques(df):
         df_last180 = df[(df['date'] > (datetime.today() - timedelta(days=180))) & (df['date'] < yesterday)]
         df_last365 = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < yesterday)]
 
-        
-        
         df_time_filtered['weekly_visits'] = 0
         
         last_dow = 6 # monday = 0, sunday = 6
@@ -113,7 +155,7 @@ def plot_daily_uniques(df):
         df_weekly_last12 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=12))) & (df_weekly['date'] < yesterday)]
         df_weekly_last24 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=24))) & (df_weekly['date'] < yesterday)]
         df_weekly_last52 = df_weekly[(df_weekly['date'] > (datetime.today() - timedelta(weeks=52))) & (df_weekly['date'] < yesterday)]
-        
+
         fig = plt.figure()
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
         fig.set_figheight(11)
@@ -168,7 +210,6 @@ def plot_daily_uniques(df):
         ax3.xaxis.set_major_formatter(myFmt)
         ax4.xaxis.set_major_formatter(myFmt)
         fig.savefig("daily_uniques.png")
-        
 
         # Weekly Data
         fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2)
@@ -178,7 +219,7 @@ def plot_daily_uniques(df):
         ax2.set_title("Past 12 weeks")
         ax3.set_title("Past 24 weeks")
         ax4.set_title("Past 52 weeks")
-        
+
         df_weekly_last4.plot(y='weekly_visits',use_index=True, ax=ax1, label='',legend=False, marker='.', ls='')
         df_weekly_last12.plot(y='weekly_visits',use_index=True, ax=ax2, label='',legend=False, marker='.', ls='')
         df_weekly_last24.plot(y='weekly_visits',use_index=True, ax=ax3, label='',legend=False, marker='.', ls='')
@@ -245,20 +286,18 @@ def plot_daily_uniques(df):
         fig.savefig("weekly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
 
 
-
         # Monthly for seasonal trends
-        
         this_month = datetime.today().strftime("%-m")
         df = df.groupby(['year','month'], as_index=False)['unique_per_day'].sum()
         df = df.rename(columns={'unique_per_day':'unique_per_month'})
         df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str))
 
         df = df[(df['month'].astype(str) != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
-                
+
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
-        ax1.bar(df['date'], df['unique_per_month'], 32)
+        ax1.bar(df['date'], df['unique_per_month'], width=np.timedelta64(20, 'D'))
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         myFmt = mdates.DateFormatter('%b-%y')
         ax1.xaxis.set_major_formatter(myFmt)
@@ -281,7 +320,10 @@ def generate_pdf(uncommon, dow_data):
         pdf.cell(40, 10, 'Vector Space Member Data Report')
         pdf.cell(10, 40, datetime.now().strftime('%m-%d-%Y'))
 
-        print(type(uncommon))
+        pdf.add_page()
+        pdf.set_font('Arial', '', 10)
+        pdf.image('percent_active.png', x = None, y = None, w=180, type = '', link = '')
+        
         pdf.add_page()
         pdf.set_font('Arial', '', 10)
         pdf.cell(40, 20, 'The following people have keyed into the space in the last 90 days, but not in the last 30 days.',0,2,"L")
@@ -328,14 +370,18 @@ def main():
         
         cnx = sqlite3.connect('rfid.db')
         df = pd.read_sql_query("SELECT * FROM logs", cnx)
+
         df = df.drop(columns=['_etag','_updated','id','uuid','resource','granted','reason'])
         df['_created']=pd.to_datetime(df['_created'])
         df['date'] = df["_created"].dt.strftime("%Y-%m-%d")
         df['time'] = df["_created"].dt.strftime("%H:%M")
         df['year'] = df["_created"].dt.strftime("%Y")
-        df = df.drop(columns=['_created'])
+
+        df = df.drop(columns=['_created','uuid_bin'])
+        
         df = df.replace({'member': {'': np.nan}}).dropna(subset=['member'])
-        df = df.dropna(axis=0, how='any', thresh=None, subset=None, inplace=False)
+        
+        df = df.dropna(axis=0, how='any', thresh=None, subset=['member'], inplace=False)
 
         df['date']=pd.to_datetime(df['date'])
         df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
@@ -369,6 +415,7 @@ def main():
         plot_daily_uniques(df)
 
         uncommon = find_inactive_members(df)
+        plot_active_members(df)
         
         generate_pdf(uncommon, dow_data_last52)
 
