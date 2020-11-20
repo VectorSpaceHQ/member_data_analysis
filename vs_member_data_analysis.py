@@ -136,6 +136,8 @@ def plot_daily_uniques(df):
         df_last365 = df[(df['date'] > (datetime.today() - timedelta(days=365))) & (df['date'] < yesterday)]
 
         df_time_filtered['weekly_visits'] = 0
+
+
         
         last_dow = 6 # monday = 0, sunday = 6
         weekly_sum = 0
