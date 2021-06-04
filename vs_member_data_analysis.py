@@ -21,7 +21,8 @@ import sys
 import os
 from pathlib import Path
 import glob
-
+import datetime as dt
+        
 
 def get_database():
         """
@@ -45,7 +46,28 @@ def get_database():
                 print("database is recent enough.")
         
 
-        
+def remove_daily_duplicates(df):
+        """
+        Remove entries from same person more than once in the same day.
+        """
+        names = set()
+        last_date = "-99"
+        duplicate_rows = []
+        for index, row in df.iterrows():
+                if row['date'] != last_date:
+                        names = set()
+                        
+                if row['member'] in names:
+                        # print(row['member'], row['date'])
+                        duplicate_rows.append(index)
+                else:
+                        names.add(row['member'])        
+                last_date = row['date']
+                
+        df = df.drop(index=duplicate_rows)
+        return df
+
+
 def find_inactive_members(df):
         df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < datetime.today())]
         df_last30 = df[(df['date'] > (datetime.today() - timedelta(days=30))) & (df['date'] < datetime.today())]
@@ -77,7 +99,7 @@ def plot_active_members(df):
         """
         Plot daily percent of active members
         """
-        print("This function takes time...")
+        print("Generating active members plot. This function takes time...")
         skip_value = 1000
         for i in range(0,df.shape[0]-skip_value):
                 j = i + skip_value
@@ -103,7 +125,7 @@ def plot_active_members(df):
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
-        ax1.set_title("Percent of Active Members Over Time")
+        ax1.set_title("Percent of Active Members Over Time \nkeys scanned in last 30 days divided by keys scanned in last 90 days")
         ax1.set_xlabel("Date")
         ax1.set_ylabel("Percent (%)")
         ax1.plot(df['date'], df['percent_active'])
@@ -306,7 +328,7 @@ def plot_daily_uniques(df):
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         myFmt = mdates.DateFormatter('%b-%y')
         ax1.xaxis.set_major_formatter(myFmt)
-        fig.suptitle("Number of Unique (per day) Member Visits per Month")
+        fig.suptitle("Number of Visits per Month \nunique per day filter")
         fig.savefig("monthly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
         
         
@@ -368,7 +390,48 @@ def generate_pdf(uncommon, dow_data):
                         os.remove(filePath)
                 except:
                         print("Error while deleting file : ", filePath)
+
+                        
+def plot_time_of_day(df_last52):
+        print(df_last52)
+
+        bins = [-1,2,4,6,8,10,12,14,16,18,20,22,24] # first bin isn't inclusive??
+        # hour = df_last52['time'].str[0:2].astype(int)
+        print(pd.cut(df_last52['time'].str[0:2].astype(int), bins))
+
+        hourly_last52 = df_last52.groupby([df_last52['dow'], pd.cut(df_last52['time'].str[0:2].astype(int), bins)])
         
+
+        xvals = []
+        days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        for i in range(7):
+                for j in range(12):
+                        xvals.append(days[i])
+        yvals = []
+        for i in range(7):
+                for j in range(12):
+                        # print(bins[j]+1)
+                        yvals.append(bins[j]+1)
+
+        size = hourly_last52.size().unstack().fillna(0).stack()
+        # size = new.stack()
+                
+        fig, ax = plt.subplots()
+        cm = plt.cm.get_cmap('coolwarm')
+        sc = ax.scatter(xvals, yvals, c=size, s=size*4, cmap=cm)
+        ax.set_xlabel("Day of Week")
+        ax.set_ylabel("Hour of Day")
+        ax.set_title("Hourly Visits, Last 52 Weeks")
+        
+        fig.tight_layout()
+        plt.colorbar(sc)
+
+        fig.savefig("time_of_day_"+datetime.now().strftime('%Y-%m-%d')+".png")
+
+        
+def prep_and_clean_data(df):
+        return df
+
 
 def main():
         get_database()
@@ -378,6 +441,7 @@ def main():
 
         df = df.drop(columns=['_etag','_updated','id','uuid','resource','granted','reason'])
         df['_created']=pd.to_datetime(df['_created'])
+        df['_created'] = df['_created'] + pd.Timedelta(hours=-4) # log times do not match local system time, even in the .db file
         df['date'] = df["_created"].dt.strftime("%Y-%m-%d")
         df['time'] = df["_created"].dt.strftime("%H:%M")
         df['year'] = df["_created"].dt.strftime("%Y")
@@ -398,11 +462,10 @@ def main():
         df['dow_averages'] = df['unique_per_day'].groupby(df["dow"]).transform('mean')
         df = df.round({'dow_averages': 1})
 
-        daily_data = df.groupby(df['date']).mean()
+        df = remove_daily_duplicates(df)
 
-        dow_data = df['dow_averages'].groupby(df['dow']).mean()
+
         yesterday = datetime.today() - timedelta(days=1)
-
         df_last52 = df[(df['date'] > (datetime.today() - timedelta(weeks=52)))& (df['date'] < yesterday)]
         df_last52.drop(columns=['dow_averages'])
         df_last52['dow_averages'] = df_last52['unique_per_day'].groupby(df_last52["dow"]).transform('mean')
@@ -413,6 +476,9 @@ def main():
 
 
 
+        plot_time_of_day(df_last52)
+        sys.exit()
+        
         #monthly_data = df['monthly_averages'].groupby(df['month_num']).mean()
         #print("Monthly Averages:")
         #print(monthly_data.sort_values(ascending=False))
