@@ -345,16 +345,17 @@ def generate_pdf(uncommon, dow_data):
 
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font('Arial', 'B', 16)
+        pdf.add_font('DejaVu', '', '/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf', uni=True)
+        pdf.set_font('DejaVu', '', 16)
         pdf.cell(40, 10, 'Vector Space Member Data Report')
         pdf.cell(10, 40, datetime.now().strftime('%m-%d-%Y'))
 
         pdf.add_page()
-        pdf.set_font('Arial', '', 10)
+        pdf.set_font('DejaVu', '', 10)
         pdf.image('percent_active.png', x = None, y = None, w=180, type = '', link = '')
 
         pdf.add_page()
-        pdf.set_font('Arial', '', 10)
+        pdf.set_font('DejaVu', '', 10)
         pdf.cell(40, 20, 'The following people have keyed into the space in the last 90 days, but not in the last 30 days.',0,2,"L")
         for i in range(0, len(uncommon)):
                 if i%2 == 0:
@@ -497,7 +498,6 @@ def main():
         dow_data_last52 = df_last52['dow_averages'].groupby(df_last52['dow']).mean()
         print("Average number of unique entries by day of week:")
         print(dow_data_last52.sort_values(ascending=False))
-
 
         plot_time_of_day(df_last52)
         plot_daily_uniques(df)
