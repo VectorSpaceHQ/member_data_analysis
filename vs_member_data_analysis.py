@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 import glob
 import datetime as dt
+import calendar
 
 
 def get_database():
@@ -323,13 +324,21 @@ def plot_daily_uniques(df):
 
         df = df[(df['month'].astype(str) != this_month) | (df['year'] != str(datetime.today().year))] # drop current month
 
+
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
-        ax1.bar(df['date'], df['unique_per_month'], width=np.timedelta64(20, 'D'))
+        months = []
+
+        for y in range(datetime.today().year , 2015, -1):
+                y = str(y)
+                months = df[(df['year'] == y)]
+                month_list = [calendar.month_abbr[i] for i in months['month']]
+                ax1.plot(month_list, months['unique_per_month'], label=y)
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
-        myFmt = mdates.DateFormatter('%b-%y')
-        ax1.xaxis.set_major_formatter(myFmt)
+        ax1.set_xlabel("Month")
+        ax1.set_ylabel("Number of Visits")
+        ax1.legend()
         fig.suptitle("Number of Visits per Month \nunique per day filter")
         fig.savefig("monthly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
 
@@ -375,8 +384,10 @@ def generate_pdf(uncommon, dow_data):
         for line in data.splitlines()[1:]:
                 pdf.cell(50, 8, '%s' % (line), 0, 2, 'R')
 
-        pdf.add_page()
         today = datetime.now().strftime('%Y-%m-%d')
+        pdf.add_page()
+        pdf.image('time_of_day_'+today+'.png', x=None, y=None, w=180, type='', link='')
+        pdf.add_page()
         pdf.image('weekly_visits_'+today+'.png', x = None, y = None, w=180, type = '', link = '')
         pdf.add_page()
         pdf.image('daily_uniques.png', x = None, y = None, w=180, type = '', link = '')
@@ -445,12 +456,22 @@ def plot_monthly_uniques(df):
         df2 = s.to_frame()
         df3 = df2.reset_index( level = [0 , 1] )
         df3['date'] = pd.to_datetime(df3.year.astype(str) + '/' + df3.month.astype(str) + '/01')
+        this_month = datetime.today().strftime("%-m")
+        df3 = df3[(df3['month'].astype(str) != this_month) | (df3['year'] != str(datetime.today().year))] # drop current month
 
         fig, ax1 = plt.subplots(1, 1)
         fig.set_figheight(11)
         fig.set_figwidth(8)
-        ax1.bar(df3['date'], df3['member'], width=np.timedelta64(20, 'D'))
-        ax1.set_ylabel("Members")
+        for y in range(datetime.today().year , 2015, -1):
+                y = str(y)
+                months = df3[(df3['year'] == y)]
+                month_list = [calendar.month_abbr[i] for i in months['month']]
+                ax1.plot(month_list, months['member'], label=y)
+        plt.grid(b=True, which='major', color='#666666', linestyle='-')
+        ax1.set_xlabel("Month")
+        ax1.set_ylabel("Number of Visits")
+        ax1.legend()
+
         plt.grid(b=True, which='major', color='#666666', linestyle='-')
         fig.suptitle("Number of Unique Visits per Month \nunique per month filter")
         fig.savefig("unique_monthly_visits_"+datetime.now().strftime('%Y-%m-%d')+".png")
