@@ -359,9 +359,9 @@ def generate_pdf(uncommon, dow_data):
         pdf.cell(40, 10, 'Vector Space Member Data Report')
         pdf.cell(10, 40, datetime.now().strftime('%m-%d-%Y'))
 
-        pdf.add_page()
-        pdf.set_font('DejaVu', '', 10)
-        pdf.image('percent_active.png', x = None, y = None, w=180, type = '', link = '')
+        # pdf.add_page()
+        # pdf.set_font('DejaVu', '', 10)
+        # pdf.image('percent_active.png', x = None, y = None, w=180, type = '', link = '')
 
         pdf.add_page()
         pdf.set_font('DejaVu', '', 10)
@@ -525,7 +525,7 @@ def main():
         plot_monthly_uniques(df)
 
         uncommon = find_inactive_members(df)
-        plot_active_members(df)
+        # plot_active_members(df)
 
         generate_pdf(uncommon, dow_data_last52)
         print("FINISHED")
