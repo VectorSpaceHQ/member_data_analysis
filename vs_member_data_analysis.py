@@ -375,7 +375,7 @@ def generate_pdf(uncommon, dow_data):
 
 
         pdf.add_page()
-        pdf.cell(40, 20, 'Average number of unique entries by day of week.',0,2,"L")
+        pdf.cell(40, 20, 'Average number of unique entries by day of week over last 52 weeks.',0,2,"L")
 
         dow_data = dow_data.drop(columns=['day'])
         dow_data = dow_data.set_index('avg_visits')
@@ -498,7 +498,7 @@ def main():
 
         df = df.replace({'member': {'': np.nan}}).dropna(subset=['member'])
 
-        df = df.dropna(axis=0, how='any', thresh=None, subset=['member'], inplace=False)
+        df = df.dropna(axis=0, how='any', subset=['member'], inplace=False)
 
         df['date']=pd.to_datetime(df['date'])
         df['week_num'] = df['date'].apply(lambda x: x.strftime("%U")) # 12/31 counts as week 52
