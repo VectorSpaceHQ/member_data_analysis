@@ -2,6 +2,6 @@
 fpdf
 pandas==1.1.5
 pysqlite3
-numpy==1.19.5
+numpy==1.22.0
 matplotlib
 paramiko
