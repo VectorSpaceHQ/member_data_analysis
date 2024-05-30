@@ -24,6 +24,9 @@ import glob
 import datetime as dt
 import calendar
 
+print(pd. __version__)
+pd.options.mode.copy_on_write = True
+
 
 def get_database():
         """
@@ -75,32 +78,27 @@ def find_inactive_members(df):
         df_last90 = df[(df['date'] > (datetime.today() - timedelta(days=90))) & (df['date'] < datetime.today())]
         df_last30 = df[(df['date'] > (datetime.today() - timedelta(days=30))) & (df['date'] < datetime.today())]
 
-        df_last30 = df_last30.groupby(df["member"]).mean()
-        df_last90 = df_last90.groupby(df["member"]).mean()
-        df_last30 = df_last30.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
-        df_last90 = df_last90.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
-        df_last30.reset_index(level=0, inplace=True)
-        df_last90.reset_index(level=0, inplace=True)
+        df_last30 = df_last30.groupby(df["member"]).size()
+        df_last90 = df_last90.groupby(df["member"]).size()
 
-        common = pd.merge(df_last30, df_last90, on=['member'], how='inner')
-        uncommon = df_last90[(~df_last90.member.isin(common.member))]
-        uncommon.reset_index(inplace=True, drop=True)
+        inactive_members = list(set(df_last90.index) - set(df_last30.index))
+
         print("\nThe following members have keyed into the space in the last 90 days, but not in the last 30 days")
-        print(uncommon)
+        print(inactive_members)
 
-        print(df_last30)
-        N_total_members = len(df_last90['member'])
-        N_active_members = len(df_last30['member'])
+        N_total_members = len(df_last90)
+        N_active_members = len(df_last30)
         print("{} Total members (visited in last 90 days)".format(N_total_members))
         print("{} Active members (visited in last 30 days)".format(N_active_members))
         print("{}% of members are currently active".format(int(100 * N_active_members / N_total_members)))
 
-        return uncommon
+        return inactive_members
 
 
 def plot_active_members(df):
         """
-        Plot daily percent of active members
+        Plot daily percent of active members.
+        Calculate activity percent for every day.
         """
         print("Generating active members plot. This function takes time...")
         skip_value = 1000
@@ -109,18 +107,25 @@ def plot_active_members(df):
                 df_last90 = df[(df['date'] > (df.iloc[j]['date'] - timedelta(days=90))) & (df['date'] < df.iloc[j]['date'])]
                 df_last30 = df[(df['date'] > (df.iloc[j]['date'] - timedelta(days=30))) & (df['date'] < df.iloc[j]['date'])]
 
-                df_last30 = df_last30.groupby(df["member"]).mean()
-                df_last90 = df_last90.groupby(df["member"]).mean()
-                df_last30 = df_last30.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
-                df_last90 = df_last90.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
-                df_last30.reset_index(level=0, inplace=True)
-                df_last90.reset_index(level=0, inplace=True)
+                # df_last30 = df_last30.groupby(df["member"]).mean()
+                # df_last90 = df_last90.groupby(df["member"]).mean()
+                # df_last30 = df_last30.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
+                # df_last90 = df_last90.drop(['unique_per_day','dow_averages','month','dow'], axis=1)
+                # df_last30.reset_index(level=0, inplace=True)
+                # df_last90.reset_index(level=0, inplace=True)
 
-                common = pd.merge(df_last30, df_last90, on=['member'], how='inner')
-                uncommon = df_last90[(~df_last90.member.isin(common.member))]
-                uncommon.reset_index(inplace=True, drop=True)
-                N_total_members = len(df_last90['member'])
-                N_active_members = len(df_last30['member'])
+                # common = pd.merge(df_last30, df_last90, on=['member'], how='inner')
+                # uncommon = df_last90[(~df_last90.member.isin(common.member))]
+                # uncommon.reset_index(inplace=True, drop=True)
+                # N_total_members = len(df_last90['member'])
+                # N_active_members = len(df_last30['member'])
+
+                df_last30 = df_last30.groupby(df["member"]).size()
+                df_last90 = df_last90.groupby(df["member"]).size()
+                inactive_members = list(set(df_last90.index) - set(df_last30.index))
+                N_total_members = len(df_last90)
+                N_active_members = len(df_last30)
+
 
                 df.loc[df.index[i+skip_value],'percent_active'] = int(100 * N_active_members / N_total_members)
 
@@ -250,6 +255,9 @@ def plot_daily_uniques(df):
         ax3.set_title("Past 24 weeks")
         ax4.set_title("Past 52 weeks")
 
+        print("\n\n")
+        print(df_weekly_last4)
+
         df_weekly_last4.plot(y='weekly_visits',use_index=True, ax=ax1, label='',legend=False, marker='.', ls='')
         df_weekly_last12.plot(y='weekly_visits',use_index=True, ax=ax2, label='',legend=False, marker='.', ls='')
         df_weekly_last24.plot(y='weekly_visits',use_index=True, ax=ax3, label='',legend=False, marker='.', ls='')
@@ -344,7 +352,7 @@ def plot_daily_uniques(df):
 
 
 
-def generate_pdf(uncommon, dow_data):
+def generate_pdf(inactive_members, dow_data):
         # convert numeric days to words
         dayOfWeek={0:'Monday', 1:'Tuesday', 2:'Wednesday', 3:'Thursday', 4:'Friday', 5:'Saturday', 6:'Sunday'}
         dow_data = pd.DataFrame({'day':dow_data.index, 'avg_visits':dow_data.values})
@@ -366,11 +374,11 @@ def generate_pdf(uncommon, dow_data):
         pdf.add_page()
         pdf.set_font('DejaVu', '', 10)
         pdf.cell(40, 20, 'The following people have keyed into the space in the last 90 days, but not in the last 30 days.',0,2,"L")
-        for i in range(0, len(uncommon)):
+        for i in range(0, len(inactive_members)):
                 if i%2 == 0:
-                        pdf.cell(50, 8, '%s' % (uncommon['member'].loc[i]), 0, 0, 'C')
+                        pdf.cell(50, 8, '%s' % (inactive_members[i]), 0, 0, 'C')
                 else:
-                        pdf.cell(50, 8, '%s' % (uncommon['member'].loc[i]), 0, 2, 'C')
+                        pdf.cell(50, 8, '%s' % (inactive_members[i]), 0, 2, 'C')
                         pdf.cell(-50)
 
 
@@ -525,7 +533,7 @@ def main():
         plot_monthly_uniques(df)
 
         uncommon = find_inactive_members(df)
-        # plot_active_members(df)
+        plot_active_members(df)
 
         generate_pdf(uncommon, dow_data_last52)
         print("FINISHED")
