@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /usr/bin/python3.12
 
 # Program to process a log list. We want to count the number of
 # unique entries per day.
@@ -24,29 +24,29 @@ import glob
 import datetime as dt
 import calendar
 
-print(pd. __version__)
 pd.options.mode.copy_on_write = True
-
+file_path = os.path.split(os.path.realpath(__file__))[0]
+os.chdir(file_path)
 
 def get_database():
         """
         Pull the latest database from the RPi
         """
         if os.path.isfile('rfid.db'):
-                modified_time = datetime.fromtimestamp(os.path.getmtime("rfid.db"))
+                modified_time = datetime.fromtimestamp(os.path.getmtime('rfid.db'))
                 print(type(modified_time))
         else:
                 modified_time = datetime.now() - timedelta(days=3)
         if (modified_time + timedelta(days=1)) < datetime.now():
                 print("database is old, get new one")
                 # sshpw = input("Enter SSH PW: ")
-                with open("sshpw",'r') as f1:
+                with open(os.path.join(file_path, "sshpw"),'r') as f1:
                         sshpw = f1.readlines()
                 ssh_client=paramiko.SSHClient()
                 ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh_client.connect(hostname='10.0.0.145',username='pi',password=sshpw)
                 ftp_client=ssh_client.open_sftp()
-                ftp_client.get('/home/pi/RFID-Access/server/rfid.db', './rfid.db')
+                ftp_client.get('/home/pi/RFID-Access/server/rfid.db', 'rfid.db')
                 ftp_client.close()
         else:
                 print("database is recent enough.")

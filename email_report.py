@@ -10,6 +10,10 @@ from email.mime.text import MIMEText
 import datetime as dt
 from os import walk
 from os.path import join
+import os
+
+file_path = os.path.split(os.path.realpath(__file__))[0]
+os.chdir(file_path)
 
 me = 'adam@vector-space.org'
 you = ['info@vector-space.org','mollie@vector-space.org']
